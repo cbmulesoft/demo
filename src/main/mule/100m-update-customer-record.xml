@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd">
+<flow name="100m-update-customer-recordFlow" doc:id="188f711a-3d13-411c-8f01-8ba636f6c77a">
+		<file:listener doc:name="On New or Updated File" doc:id="83f7dd37-b555-497c-9601-d920a6b6df01" config-ref="File_Config" directory="${file.read.directory}" watermarkMode="CREATED_TIMESTAMP" timeBetweenSizeCheck="1" timeBetweenSizeCheckUnit="MINUTES" autoDelete="true" moveToDirectory="${file.move.directory}" renameTo="#['completed.csv']" applyPostActionWhenFailed="false">
+			<scheduling-strategy>
+				<fixed-frequency frequency="1" timeUnit="MINUTES" />
+			</scheduling-strategy>
+		</file:listener>
+		<set-variable value="100m-update-customer-recordFlow" doc:name="Set flowName" doc:id="fe132b34-af06-4518-b26d-05923a9d501b" variableName="flowName"/>
+		<flow-ref doc:name="log-request-subFlow" doc:id="436c4eaf-bc06-4f38-8acf-c1458cd9a474" name="log-request-subFlow"/>
+		<ee:transform doc:name="Transform Message" doc:id="a639eaf3-38d7-4b40-b5ee-a1da4791a5d9" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload map(customer) -> 
+{
+	customerName: customer.contactFirstName ++ " " ++ customer.contactLastName,
+	customerNumber : customer.customerNumber
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<db:bulk-update doc:name="Bulk update" doc:id="4642deb3-2fcb-4257-a4f5-f2355f073e16" config-ref="MySQL_Config">
+			<db:sql ><![CDATA[update customers set customerName = :customerName WHERE customerNumber = :customerNumber]]></db:sql>
+		</db:bulk-update>
+		<flow-ref doc:name="log-response-subFlow" doc:id="a6962b5a-ab54-45d4-96ee-f3e302e5a17f" name="log-response-subFlow"/>
+		<error-handler ref="100m-customer-appError_Handler" />
+	</flow>
+</mule>
